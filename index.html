@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WedScore - O Tribunal do Casamento</title>
+  
+  <!-- Tailwind CSS & FontAwesome Icons via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <!-- React & ReactDOM (Production Build) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone para transpilar JSX no navegador -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-stone-100 text-stone-800 antialiased selection:bg-rose-100 selection:text-rose-900 min-h-screen">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const EVALUATORS = [
+      { id: 'Gabriel', name: 'Gabriel', avatar: '👨‍💼', color: 'bg-indigo-600' },
+      { id: 'Pamella', name: 'Pamella', avatar: '👰', color: 'bg-rose-500' },
+      { id: 'Claudia', name: 'Claudia (Main)', avatar: '👑', color: 'bg-amber-500' }
+    ];
+
+    const CRITERIA_CONFIG = [
+      { id: 'espaco', name: 'Estrutura & Estética', icon: 'fa-building', desc: 'Beleza, área coberta, plano B para chuva e iluminação' },
+      { id: 'gastronomia', name: 'Gastronomia & Bebidas', icon: 'fa-utensils', desc: 'Qualidade do buffet, opções de cardápio e bebidas' },
+      { id: 'logistica', name: 'Acesso & Logística', icon: 'fa-map-location-dot', desc: 'Estacionamento, distância para convidados e acesso' },
+      { id: 'custo', name: 'Custo-Benefício', icon: 'fa-file-invoice-dollar', desc: 'O que inclui (gerador, móveis, limpeza, equipe)' },
+      { id: 'vibe', name: 'Sensação & Vibe', icon: 'fa-heart', desc: 'A nota do coração e o atendimento da equipe' }
+    ];
+
+    function App() {
+      const [venues, setVenues] = useState(() => {
+        try {
+          const saved = localStorage.getItem('wedscore_venues_v1');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          return [];
+        }
+      });
+
+      const [activeEvaluator, setActiveEvaluator] = useState('Gabriel');
+      const [selectedVenueId, setSelectedVenueId] = useState(null);
+      const [isAddingVenue, setIsAddingVenue] = useState(false);
+
+      // Formulário para novo local
+      const [newVenue, setNewVenue] = useState({ name: '', location: '', price: '', notes: '' });
+
+      useEffect(() => {
+        try {
+          localStorage.setItem('wedscore_venues_v1', JSON.stringify(venues));
+        } catch (e) {
+          console.error("Erro ao salvar dados locais", e);
+        }
+      }, [venues]);
+
+      const handleAddVenue = (e) => {
+        e.preventDefault();
+        if (!newVenue.name.trim()) return;
+
+        const created = {
+          id: 'v_' + Date.now(),
+          name: newVenue.name,
+          location: newVenue.location,
+          price: newVenue.price,
+          notes: newVenue.notes,
+          ratings: {
+            Gabriel: { scores: { espaco: 3, gastronomia: 3, logistica: 3, custo: 3, vibe: 3 }, isFavorite: false, isVeto: false, comment: '' },
+            Pamella: { scores: { espaco: 3, gastronomia: 3, logistica: 3, custo: 3, vibe: 3 }, isFavorite: false, isVeto: false, comment: '' },
+            Claudia: { scores: { espaco: 3, gastronomia: 3, logistica: 3, custo: 3, vibe: 3 }, isFavorite: false, isVeto: false, comment: '' }
+          }
+        };
+
+        setVenues([...venues, created]);
+        setSelectedVenueId(created.id);
+        setNewVenue({ name: '', location: '', price: '', notes: '' });
+        setIsAddingVenue(false);
+      };
+
+      const handleRatingChange = (venueId, criterionId, val) => {
+        setVenues(venues.map(v => {
+          if (v.id !== venueId) return v;
+          const userRatings = v.ratings[activeEvaluator] || { scores: {}, isFavorite: false, isVeto: false, comment: '' };
+          return {
+            ...v,
+            ratings: {
+              ...v.ratings,
+              [activeEvaluator]: {
+                ...userRatings,
+                scores: { ...userRatings.scores, [criterionId]: Number(val) }
+              }
+            }
+          };
+        }));
+      };
+
+      const handleToggleTag = (venueId, tagType) => {
+        setVenues(venues.map(v => {
+          if (v.id !== venueId) return v;
+          const userRatings = v.ratings[activeEvaluator] || { scores: {}, isFavorite: false, isVeto: false, comment: '' };
+          return {
+            ...v,
+            ratings: {
+              ...v.ratings,
+              [activeEvaluator]: {
+                ...userRatings,
+                isFavorite: tagType === 'fav' ? !userRatings.isFavorite : false,
+                isVeto: tagType === 'veto' ? !userRatings.isVeto : false
+              }
+            }
+          };
+        }));
+      };
+
+      const handleCommentChange = (venueId, comment) => {
+        setVenues(venues.map(v => {
+          if (v.id !== venueId) return v;
+          const userRatings = v.ratings[activeEvaluator] || { scores: {}, isFavorite: false, isVeto: false, comment: '' };
+          return {
+            ...v,
+            ratings: {
+              ...v.ratings,
+              [activeEvaluator]: { ...userRatings, comment }
+            }
+          };
+        }));
+      };
+
+      const handleDeleteVenue = (venueId) => {
+        if (confirm("Deseja realmente remover este local?")) {
+          setVenues(venues.filter(v => v.id !== venueId));
+          if (selectedVenueId === venueId) setSelectedVenueId(null);
+        }
+      };
+
+      const getVenueAverage = (venue) => {
+        let total = 0;
+        let count = 0;
+        Object.values(venue.ratings).forEach(r => {
+          Object.values(r.scores || {}).forEach(s => {
+            total += Number(s);
+            count++;
+          });
+        });
+        return count ? (total / count).toFixed(1) : '0.0';
+      };
+
+      const activeVenue = venues.find(v => v.id === selectedVenueId);
+
+      return (
+        <div className="max-w-md md:max-w-3xl mx-auto min-h-screen pb-12 flex flex-col shadow-xl bg-white">
+          {/* Header Topo */}
+          <header className="bg-stone-900 text-stone-100 p-4 border-b border-stone-800 flex items-center justify-between sticky top-0 z-20">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">💒</span>
+              <div>
+                <h1 className="font-bold text-lg leading-none tracking-wide text-rose-200">WedScore</h1>
+                <p className="text-xs text-stone-400">O Tribunal do Casamento</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsAddingVenue(true)}
+              className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 shadow-sm"
+            >
+              <i className="fa-solid fa-plus text-xs"></i>
+              <span>Novo Local</span>
+            </button>
+          </header>
+
+          {/* Seletor de Avaliador Ativo */}
+          <section className="bg-stone-800 p-3 text-white border-b border-stone-700">
+            <p className="text-xs text-stone-400 uppercase font-semibold mb-2 tracking-wider text-center">Quem está avaliando agora?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {EVALUATORS.map(evaluator => {
+                const isActive = activeEvaluator === evaluator.id;
+                return (
+                  <button
+                    key={evaluator.id}
+                    onClick={() => setActiveEvaluator(evaluator.id)}
+                    className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition text-xs font-semibold ${
+                      isActive 
+                        ? `${evaluator.color} text-white shadow-md ring-2 ring-white/50 scale-[1.02]` 
+                        : 'bg-stone-700 text-stone-300 hover:bg-stone-650'
+                    }`}
+                  >
+                    <span className="text-lg">{evaluator.avatar}</span>
+                    <span>{evaluator.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Conteúdo Principal */}
+          <main className="flex-1 p-4">
+            {/* Modal de Novo Local */}
+            {isAddingVenue && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <form onSubmit={handleAddVenue} className="bg-white text-stone-800 rounded-2xl p-5 w-full max-w-md shadow-2xl space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h2 className="font-bold text-lg text-stone-900 flex items-center gap-2">
+                      <span>📍</span> Cadastrar Espaço
+                    </h2>
+                    <button type="button" onClick={() => setIsAddingVenue(false)} className="text-stone-400 hover:text-stone-600">
+                      <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-600 uppercase mb-1">Nome do Espaço *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Villa Bisutti, Mansão Festejar"
+                      value={newVenue.name}
+                      onChange={e => setNewVenue({ ...newVenue, name: e.target.value })}
+                      className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-
